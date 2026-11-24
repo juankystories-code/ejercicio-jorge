@@ -4,7 +4,18 @@
 
 > Guía de trabajo. Los bloques **"Para el informe"** son texto ya redactado para pegar en la plantilla.
 > Los bloques de comandos son para ejecutar. Donde pone 📸 hay que hacer captura.
-> Sustituye `TU_USUARIO`, `TU_NOMBRE` y `NOMBRE_VM` por tus valores.
+> Las capturas de cada apartado están en `capturas/` (prefijo con el número del apartado).
+
+**Datos de esta instalación** (ya sustituidos en toda la guía):
+
+| Dato | Valor |
+|---|---|
+| Máquina virtual | `Ubuntu Server 24.04` (2 CPU, 4096 MB, disco de 25 GB, NAT) |
+| Usuario de Ubuntu | `vboxuser` (equipo `Ubuntu-Server`) |
+| Reglas NAT finales | SSH `127.0.0.1:2222 → 22`, Nginx-HTTP `18080 → 80`, Nginx-HTTPS `18443 → 443` |
+| Base de datos de Odoo | `ua2_ubuntu`, administrador `alumno@ua2.local` |
+| Acceso a Odoo | `https://localhost:18443` |
+| Nombre en `terminal.txt` | `vboxuser` |
 
 ---
 
