@@ -8,6 +8,40 @@
 
 ---
 
+## 0. Preparación en Windows (antes de empezar)
+
+### Qué necesitas tener en local
+
+| Qué | Dónde se consigue |
+|---|---|
+| ISO de **Ubuntu Server 24.04** (`ubuntu-24.04.x-live-server-amd64.iso`, ~3 GB) | https://releases.ubuntu.com/24.04/ |
+| **VirtualBox** | https://www.virtualbox.org/wiki/Downloads |
+| Cliente **SSH** | Viene en Windows 10/11 (`ssh -V` en PowerShell) |
+| Plantilla Nginx **`odoo_ua2`** y **plantilla del informe** | Plataforma del curso (la tarea) |
+
+PostgreSQL, Odoo y Nginx **no** se descargan en Windows: se instalan dentro de Ubuntu con `apt` (apartados 2 y 6).
+
+### Descarga automática
+
+Desde PowerShell, en la carpeta del repositorio:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\descargar_requisitos.ps1
+```
+
+El script descarga la última ISO de Ubuntu Server 24.04 en `Descargas\SGE_P2`, comprueba su huella SHA256 (que no esté corrupta), instala VirtualBox con `winget` y revisa el cliente SSH y la virtualización.
+
+### Crear la máquina virtual
+
+- Tipo: Linux / Ubuntu (64-bit). **Marca "Omitir instalación desatendida"** para instalar tú a mano.
+- RAM: 4096 MB · CPU: 2 · Disco: 25 GB (dinámico).
+- Red: Adaptador 1 en **NAT**.
+- En el instalador de Ubuntu: idioma, teclado **Spanish**, instalación "Ubuntu Server" normal, disco entero, crea tu usuario y **marca "Install OpenSSH server"** (te ahorra parte del apartado 1). No marques ningún snap extra.
+
+📸 Captura de la configuración de la VM y del final de la instalación.
+
+---
+
 ## 1. NAT y conexión por SSH
 
 ### Para el informe – ¿Qué es NAT?
