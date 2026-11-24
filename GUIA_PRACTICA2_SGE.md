@@ -1,4 +1,6 @@
-# Práctica 2 SGE – Odoo 19 nativo en Ubuntu (VirtualBox NAT + Nginx + HTTPS)
+# Práctica 2 SGE – Odoo 19 Community nativo en Ubuntu Server 24.04
+
+**Enunciado:** Instala PostgreSQL 16 y Odoo 19 Community en Ubuntu Server 24.04. Administra el servidor desde Windows mediante SSH y configura Nginx para acceder a Odoo mediante HTTPS. Utiliza los apartados 4, 5 y 6 del tema como referencia.
 
 > Guía de trabajo. Los bloques **"Para el informe"** son texto ya redactado para pegar en la plantilla.
 > Los bloques de comandos son para ejecutar. Donde pone 📸 hay que hacer captura.
@@ -129,7 +131,7 @@ tree ~/ua2_p2 || ls -R ~/ua2_p2
 
 ## 2. PostgreSQL 16 y Odoo 19 Community
 
-> En **Ubuntu 24.04** el paquete `postgresql` ya es la versión 16. Comprueba tu versión con `lsb_release -a`. Si fuera otra versión de Ubuntu, habría que añadir el repositorio oficial de PostgreSQL (PGDG) e instalar `postgresql-16`.
+> En **Ubuntu Server 24.04** el paquete `postgresql` de los repositorios oficiales es la versión 16, así que no hace falta añadir repositorios extra. Compruébalo con `lsb_release -a` (captura para el informe).
 
 ```bash
 sudo apt update && sudo apt upgrade -y
