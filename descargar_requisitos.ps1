@@ -13,7 +13,9 @@ Write-Host "Carpeta de descargas: $dest" -ForegroundColor Cyan
 
 # ---------------------------------------------------------------- 1. ISO Ubuntu Server 24.04 (ultima revision)
 $base  = 'https://releases.ubuntu.com/24.04'
-$sums  = (Invoke-WebRequest "$base/SHA256SUMS" -UseBasicParsing).Content -split "`n"
+$raw   = (Invoke-WebRequest "$base/SHA256SUMS" -UseBasicParsing).Content
+if ($raw -is [byte[]]) { $raw = [Text.Encoding]::ASCII.GetString($raw) }   # PS 5.1 lo devuelve como bytes
+$sums  = $raw -split "`r?`n"
 $best  = $sums |
     Where-Object { $_ -match '^([0-9a-f]{64}) \*(ubuntu-([\d\.]+)-live-server-amd64\.iso)$' } |
     ForEach-Object {

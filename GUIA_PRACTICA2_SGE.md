@@ -29,16 +29,38 @@ Desde PowerShell, en la carpeta del repositorio:
 powershell -ExecutionPolicy Bypass -File .\descargar_requisitos.ps1
 ```
 
-El script descarga la última ISO de Ubuntu Server 24.04 en la carpeta `descargas` del propio repo (ignorada por git: no se sube a GitHub), comprueba su huella SHA256 (que no esté corrupta), instala VirtualBox con `winget` y revisa el cliente SSH y la virtualización.
+El script descarga la última ISO de Ubuntu Server 24.04 en la carpeta `descargas\` del repositorio (excluida de git en `.gitignore`), comprueba su huella SHA256 (que no esté corrupta), descarga e instala VirtualBox con `winget` (el instalador también queda en `descargas`) y revisa el cliente SSH y la virtualización.
+
+📸 Salida del script: ISO 24.04.5 verificada, VirtualBox 7.2.22, cliente SSH y virtualización por hardware correctos.
+
+![Salida de descargar_requisitos.ps1](capturas/0-1_script_requisitos.png)
 
 ### Crear la máquina virtual
 
-- Tipo: Linux / Ubuntu (64-bit). **Marca "Omitir instalación desatendida"** para instalar tú a mano.
-- RAM: 4096 MB · CPU: 2 · Disco: 25 GB (dinámico).
+- Nombre: `Ubuntu Server 24.04` · Tipo: Linux / **Ubuntu 24.04 LTS (64-bit)**.
+- RAM: 4096 MB · CPU: 2 · Disco: 25 GB (dinámico) · Firmware: BIOS.
 - Red: Adaptador 1 en **NAT**.
-- En el instalador de Ubuntu: idioma, teclado **Spanish**, instalación "Ubuntu Server" normal, disco entero, crea tu usuario y **marca "Install OpenSSH server"** (te ahorra parte del apartado 1). No marques ningún snap extra.
+- Instalación: se usó la **instalación desatendida** de VirtualBox (usuario `vboxuser`, equipo `Ubuntu-Server`). Si prefieres instalar a mano, marca "Omitir instalación desatendida" y en el instalador elige teclado **Spanish**, disco entero, tu usuario y **"Install OpenSSH server"**.
+- Diferencias de la instalación desatendida: el teclado queda en inglés (US) y **no instala OpenSSH**; se instaló después con `sudo apt install openssh-server` (apartado 1).
+- El asistente dejó 1 CPU y el tipo "Ubuntu 24.10"; se corrigieron con la VM apagada:
 
-📸 Captura de la configuración de la VM y del final de la instalación.
+```bash
+"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" modifyvm "Ubuntu Server 24.04" --cpus 2 --os-type Ubuntu24_LTS_64
+```
+
+📸 Configuración de la VM (nombre, tipo, RAM, CPU, virtualización, red NAT y disco de 25 GB dinámico):
+
+![Configuración de la VM con VBoxManage](capturas/0-2_configuracion_vm.png)
+
+📸 Ubuntu instalado y arrancado: usuario `vboxuser`, Ubuntu 24.04.5 LTS, kernel 6.8, 2 CPU, 3,8 GiB de RAM, disco de 25 GB, red `enp0s3` con IP de NAT `10.0.2.15` y SSH activo:
+
+![Ubuntu Server instalado](capturas/0-3_ubuntu_instalado.png)
+
+Comando usado en la consola de la VM:
+
+```bash
+whoami; hostnamectl | grep -E 'hostname|Operating|Kernel|Virtualization'; echo CPUs: $(nproc); free -h | head -2; lsblk -e7 -o NAME,SIZE,TYPE,MOUNTPOINTS; ip -br a; echo ssh: $(systemctl is-active ssh)
+```
 
 ---
 
@@ -73,13 +95,23 @@ Interfaz gráfica: **VM → Configuración → Red → Adaptador 1 → Conectado
 |---|---|---|---|---|---|
 | SSH | TCP | (vacío o 127.0.0.1) | 2222 | (vacío) | 22 |
 
-📸 Captura del adaptador en NAT y de la tabla de reenvío.
-
 (Alternativa desde PowerShell de Windows, con la VM apagada:)
 
 ```bash
-"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" modifyvm "NOMBRE_VM" --natpf1 "SSH,tcp,,2222,,22"
+"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" modifyvm "Ubuntu Server 24.04" --natpf1 "SSH,tcp,127.0.0.1,2222,,22"
 ```
+
+Con la VM encendida se usa `controlvm` en vez de `modifyvm`:
+
+```bash
+"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" controlvm "Ubuntu Server 24.04" natpf1 "SSH,tcp,127.0.0.1,2222,,22"
+```
+
+En esta VM se crearon de una vez las cuatro reglas de la práctica (SSH y las que usan los apartados 3 y 6), todas solo en `127.0.0.1` para que no se pueda entrar desde otros equipos de la red.
+
+📸 Adaptador 1 en NAT y tabla de reenvío:
+
+![Adaptador NAT y reglas de reenvío](capturas/1-1_nat_reenvio.png)
 
 ### Comprobar conectividad en Ubuntu
 
@@ -96,10 +128,12 @@ ping -c 4 8.8.8.8
 ```
 
 ```bash
-ping -c 4 ubuntu.com
+ping -c 4 google.com
 ```
 
-📸 Se debe ver la IP `10.0.2.15`, la ruta por defecto vía `10.0.2.2` y que los pings responden (el segundo demuestra que el DNS funciona).
+📸 Se ve la IP `10.0.2.15`, la ruta por defecto vía `10.0.2.2` y que los pings responden. El segundo demuestra que el DNS funciona, porque traduce `google.com` a una IP. (`ubuntu.com` no sirve para esta prueba: resuelve bien, pero sus servidores no contestan al ping.)
+
+![Red de Ubuntu: IP, rutas y pings](capturas/1-2_red_ubuntu.png)
 
 ### Preparar OpenSSH
 
@@ -123,15 +157,29 @@ systemctl status ssh --no-pager
 sudo ss -tlnp | grep :22
 ```
 
-📸 Servicio `active` y escuchando en el 22.
+📸 Instalación y habilitación de OpenSSH (`enable` crea los enlaces para que arranque solo en cada inicio):
+
+![apt update, instalación y enable de OpenSSH](capturas/1-3_instalar_openssh.png)
+
+📸 Servicio `active (running)`, `enabled` y escuchando en el puerto 22 (IPv4 e IPv6):
+
+![Estado de ssh y puerto 22](capturas/1-4_ssh_activo.png)
 
 ### Conectar desde Windows (PowerShell o Terminal)
 
 ```bash
-ssh -p 2222 TU_USUARIO@127.0.0.1
+ssh -p 2222 vboxuser@127.0.0.1
 ```
 
-La primera vez pregunta si confías en la huella (fingerprint) del servidor → `yes`. 📸
+La primera vez pregunta si confías en la huella (fingerprint) del servidor → `yes`.
+
+📸 Pregunta de la huella ED25519 del servidor:
+
+![Huella SSH en la primera conexión](capturas/1-5_huella_ssh.png)
+
+📸 Sesión SSH abierta desde Windows (el prompt `vboxuser@Ubuntu-Server` y el título de la ventana lo confirman):
+
+![Conexión SSH desde Windows](capturas/1-6_conexion_ssh.png)
 
 ### Crear carpetas y archivos (dentro de la sesión SSH)
 
@@ -144,8 +192,10 @@ cd ~/ua2_p2/pruebas
 ```
 
 ```bash
-printf "TU_NOMBRE\nPráctica 2 de SGE\n" > terminal.txt
+printf "vboxuser\nPráctica 2 de SGE\n" > terminal.txt
 ```
+
+(En la captura la «á» se escribió como `\u00e1`, que `printf` convierte en «á»: la consola de Windows no deja teclear letras con tilde dentro de SSH en algunos casos. El archivo queda igual.)
 
 ```bash
 cp terminal.txt terminal_copia.txt
@@ -159,7 +209,11 @@ pwd && ls -l && cat terminal.txt terminal_copia.txt
 tree ~/ua2_p2 || ls -R ~/ua2_p2
 ```
 
-📸 Captura de la terminal de Windows mostrando todo (que se vea que es la sesión SSH).
+(`tree` no viene instalado; se instaló con `sudo apt install -y tree`. Sin él, el `|| ls -R` muestra lo mismo en forma de lista.)
+
+📸 Terminal de Windows con la sesión SSH: carpetas, archivos y su contenido:
+
+![Carpetas y archivos creados por SSH](capturas/1-7_carpetas_ssh.png)
 
 ---
 
@@ -188,6 +242,12 @@ echo 'deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://night
 ```bash
 sudo apt update && sudo apt install -y odoo
 ```
+
+(En la consola se lanzó todo seguido, con `DEBIAN_FRONTEND=noninteractive` para que `apt` no pare a preguntar. Tardó unos 9 minutos.)
+
+📸 Final de la instalación: se configura `odoo (19.0.20261123)` y se crea el enlace del servicio para el arranque:
+
+![Fin de la instalación de Odoo](capturas/2-0_instalacion_odoo.png)
 
 ### Versiones y estado
 
@@ -243,7 +303,33 @@ sudo tail -n 30 /var/log/postgresql/postgresql-16-main.log
 sudo tail -n 30 /var/log/odoo/odoo-server.log
 ```
 
-📸 `pg_lsclusters` debe mostrar `16 main 5432 online`.
+📸 Versiones: Ubuntu 24.04.5 LTS, PostgreSQL 16.15, paquetes `odoo` 19.0 y `postgresql-16` instalados (`ii`) y Odoo Server 19.0:
+
+![Versiones instaladas](capturas/2-1_versiones.png)
+
+📸 `pg_lsclusters` muestra `16 main 5432 online`; PostgreSQL escucha solo en `127.0.0.1:5432`; los dos servicios quedan `enabled`:
+
+![Clúster, puerto 5432 y servicios habilitados](capturas/2-2_cluster_puerto_servicios.png)
+
+📸 Servicio de Odoo `active (running)`. En la línea del proceso se ve `--config /etc/odoo/odoo.conf --logfile /var/log/odoo/odoo-server.log`:
+
+![Estado del servicio odoo](capturas/2-3_estado_odoo.png)
+
+📸 Clúster de PostgreSQL `active (running)`, con dos conexiones abiertas por Odoo (`odoo postgres [local] idle`):
+
+![Estado de postgresql@16-main](capturas/2-4_estado_postgresql.png)
+
+📸 `journalctl` de los dos servicios (solo arranques y paradas):
+
+![journalctl de odoo y postgresql](capturas/2-5_journal.png)
+
+📸 Log de PostgreSQL: arranca la 16.15, escucha en `127.0.0.1:5432` y `database system is ready to accept connections`:
+
+![Log de PostgreSQL](capturas/2-6_log_postgresql.png)
+
+📸 Log de Odoo: versión 19.0, `/etc/odoo/odoo.conf`, conexión `odoo@default` y servidor HTTP en el puerto 8069. Las primeras peticiones `GET /web/login` llegan desde `10.0.2.2` (Windows, a través del NAT):
+
+![Log de Odoo](capturas/2-7_log_odoo.png)
 
 **Fíjate:** `journalctl -u odoo` muestra muy poco porque el servicio del paquete arranca Odoo con `--logfile /var/log/odoo/odoo-server.log` (lo verás en `systemctl cat odoo`). El log útil está en ese archivo.
 
@@ -265,6 +351,15 @@ sudo systemctl restart odoo && sudo tail -n 20 /var/log/odoo/odoo-server.log
 
 Documenta en el informe el error, la causa y el resultado tras corregirlo (si no te sale ningún error, indícalo y muestra los logs limpios).
 
+**Resultado en esta instalación: no hubo error.** El paquete de Odoo crea el rol `odoo` en PostgreSQL al instalarse, con permiso para crear bases de datos y sin ser superusuario:
+
+![Roles de PostgreSQL](capturas/2-8_roles_postgresql.png)
+
+En el log de Odoo solo hay avisos (`WARNING`), no errores:
+
+- `db_host`, `db_port` y `db_password reads 'False'`: el `odoo.conf` del paquete trae esos valores a `False`. Odoo los ignora y usa los valores por defecto: conexión local por socket, sin contraseña, con el mismo usuario del sistema (`odoo`). Se revisa en el apartado 3.
+- `missing --http-interface ... using 0.0.0.0`: Odoo escucha en todas las interfaces. Se limita a `127.0.0.1` en el apartado 3 o el 6.
+
 ---
 
 ## 3. Configurar Odoo y crear la base de datos
@@ -282,6 +377,10 @@ sudo cp /etc/odoo/odoo.conf /etc/odoo/odoo.conf.p2.bak
 ```bash
 sudo cat /etc/odoo/odoo.conf
 ```
+
+📸 Copia de seguridad `odoo.conf.p2.bak` creada y contenido original del paquete. La contraseña maestra viene comentada (`; admin_passwd = admin`):
+
+![Copia y odoo.conf original](capturas/3-1_copia_odoo_conf.png)
 
 Edita:
 
@@ -304,6 +403,10 @@ log_level = info
 
 `db_host = False` significa "servidor local, por socket" → usa el PostgreSQL de la misma máquina.
 
+**No uses `admin` como contraseña maestra.** Odoo la trata como si no hubiera contraseña: el gestor de bases de datos avisa de que no está protegido y propone una contraseña aleatoria. En esta práctica se usó `MaestraSGE-2026`.
+
+(Como alternativa a `nano`, el archivo se escribió desde la terminal con `printf '...' | sudo tee /etc/odoo/odoo.conf`, que conserva el propietario `odoo:odoo` y los permisos `640` del archivo.)
+
 ```bash
 sudo systemctl restart odoo
 ```
@@ -312,17 +415,29 @@ sudo systemctl restart odoo
 sudo ss -tlnp | grep -E "8069|5432"
 ```
 
-📸 Odoo en `0.0.0.0:8069`; PostgreSQL en `127.0.0.1:5432` (y `::1`), **no** en `0.0.0.0`. Eso confirma que PostgreSQL solo es accesible desde Ubuntu. Compruébalo también:
+📸 Odoo en `0.0.0.0:8069`; PostgreSQL en `127.0.0.1:5432`, **no** en `0.0.0.0`. Eso confirma que PostgreSQL solo es accesible desde Ubuntu. Compruébalo también:
 
 ```bash
 sudo -u postgres psql -c "SHOW listen_addresses;"
 ```
+
+Para la captura, el archivo se muestra con la contraseña tapada:
+
+```bash
+sudo sed 's/^\(admin_passwd *=\).*/\1 ********/' /etc/odoo/odoo.conf
+```
+
+![odoo.conf editado, puertos y listen_addresses](capturas/3-2_odoo_conf_puertos.png)
+
+`listen_addresses = localhost` es el valor por defecto de PostgreSQL en Ubuntu: solo acepta conexiones desde la propia máquina.
 
 ### Regla NAT Odoo-directo
 
 | Nombre | Puerto anfitrión | Puerto invitado |
 |---|---|---|
 | Odoo-directo | 18069 | 8069 |
+
+(Ya creada en el apartado 1; se ve en la captura `1-1_nat_reenvio.png`.)
 
 ### UFW (reglas ANTES de activar)
 
@@ -342,20 +457,40 @@ sudo ufw enable
 sudo ufw status verbose
 ```
 
-No se abre el 5432: PostgreSQL ya solo escucha en local y además el firewall lo bloquea (doble protección). 📸
+No se abre el 5432: PostgreSQL ya solo escucha en local y además el firewall lo bloquea (doble protección).
+
+`ufw enable` solo pide confirmación cuando lo ejecutas desde una sesión SSH (avisa de que podría cortarla). Desde la consola de la VM se activa directamente.
+
+📸 UFW activo y habilitado al arrancar, entrada denegada por defecto y solo 22 y 8069 permitidos. En la captura, las reglas aparecen como `Skipping adding existing rule` porque se repitió el comando para hacerla:
+
+![Estado de UFW](capturas/3-3_ufw.png)
 
 ### Crear la base de datos
 
 En Windows abre `http://localhost:18069`:
 
-- Master Password: tu contraseña maestra
+- Master Password: tu contraseña maestra (la de `admin_passwd`)
 - Database Name: `ua2_ubuntu`
 - Email: `alumno@ua2.local`
 - Password: (la que quieras, apúntala)
-- Language: Español (ES) / Country: España
+- Language: Spanish / Español (`es_ES`) / Country: Spain
 - **Demo data: desmarcado**
 
-📸 Formulario relleno, y luego pantalla tras iniciar sesión.
+📸 Formulario relleno en `http://localhost:18069/web/database/manager`:
+
+![Formulario de creación de la base de datos](capturas/3-4_formulario_bd.png)
+
+La creación tarda alrededor de un minuto. Al terminar, Odoo entra solo con la cuenta nueva. Para la captura se cerró la sesión y se volvió a entrar.
+
+📸 Inicio de sesión con `alumno@ua2.local` (ya en español):
+
+![Inicio de sesión](capturas/3-5_login.png)
+
+📸 Pantalla tras iniciar sesión (`/odoo/apps`, lista de aplicaciones de la base de datos `ua2_ubuntu`):
+
+![Sesión iniciada en Odoo](capturas/3-6_sesion_iniciada.png)
+
+(Las capturas del navegador se hicieron con Edge sin interfaz (modo headless), así que no se ve la barra de direcciones. La dirección es la que se indica encima de cada una.)
 
 ### Para el informe – Contraseña maestra vs. contraseña del administrador
 
@@ -384,6 +519,14 @@ sudo -u odoo odoo -c /etc/odoo/odoo.conf -d ua2_ubuntu -i website --stop-after-i
 sudo systemctl start odoo
 ```
 
+(En la práctica se lanzaron los tres seguidos: `sudo systemctl stop odoo && sudo -u odoo odoo ... ; sudo systemctl start odoo`.)
+
+📸 Final de la instalación: se cargan `website` y los módulos que necesita (`41 modules loaded in 20.04s`) y Odoo se para solo (`--stop-after-init`):
+
+![Instalación de website por terminal](capturas/4-1_instalar_website.png)
+
+Los dos `WARNING ... Permission denied: 'html4css1.css'` no afectan a la instalación. Odoo no puede generar la descripción formateada de `website_mail` y `website_sms` y usa el texto sin formato.
+
 Comprobar estado y dependencias:
 
 ```bash
@@ -394,9 +537,19 @@ sudo -u postgres psql -d ua2_ubuntu -c "SELECT name, state, latest_version FROM 
 sudo -u postgres psql -d ua2_ubuntu -c "SELECT d.name AS depende_de, m.state FROM ir_module_module_dependency d JOIN ir_module_module m ON m.name=d.name WHERE d.module_id=(SELECT id FROM ir_module_module WHERE name='website') ORDER BY 1;"
 ```
 
-📸 `website | installed` y la lista de dependencias (todas `installed`, Odoo las instala automáticamente).
+📸 `website | installed | 19.0.1.0` y sus 11 dependencias directas, todas `installed`: Odoo las instala automáticamente.
 
-En el navegador: abre la app **Sitio web** y **Sitio web → Configuración → Ajustes**. 📸 No crees páginas.
+![Estado de website y dependencias](capturas/4-2_estado_dependencias.png)
+
+En el navegador: abre la app **Sitio web** y **Sitio web → Configuración → Ajustes**. No crees páginas.
+
+📸 La app **Sitio web** aparece en el menú de aplicaciones. En la lista de Aplicaciones ya no tiene el botón «Activar»:
+
+![Menú de aplicaciones con Sitio web](capturas/4-3_menu_aplicaciones.png)
+
+📸 **Sitio web → Configuración → Ajustes** (`http://localhost:18069/odoo/action-website.action_website_configuration`): sitio «My Website» en español y sin dominio:
+
+![Ajustes de Sitio web](capturas/4-4_ajustes_sitio_web.png)
 
 ---
 
@@ -406,6 +559,10 @@ En el navegador: abre la app **Sitio web** y **Sitio web → Configuración → 
 dpkg -L odoo | grep -vE "\.py$|\.pyc$|/static/|/i18n/" | head -40
 ```
 
+📸 Archivos del paquete `odoo` (sin `.py`, estáticos ni traducciones): script de arranque `/etc/init.d/odoo`, rotación de logs `/etc/logrotate.d/odoo`, configuración `/etc/odoo/odoo.conf`, ejecutable `/usr/bin/odoo` y los módulos en `/usr/lib/python3/dist-packages/...`:
+
+![Archivos del paquete odoo](capturas/5-1_dpkg_odoo.png)
+
 ```bash
 systemctl cat odoo
 ```
@@ -413,6 +570,10 @@ systemctl cat odoo
 ```bash
 sudo cat /etc/odoo/odoo.conf
 ```
+
+📸 Unidad de systemd (usuario `odoo`, `ExecStart` con `--config` y `--logfile`) y `odoo.conf` con la contraseña tapada (`sudo sed 's/^\(admin_passwd *=\).*/\1 ********/' /etc/odoo/odoo.conf`):
+
+![systemctl cat odoo y odoo.conf](capturas/5-2_servicio_y_conf.png)
 
 Valores efectivos de Odoo (abre una consola de Odoo):
 
@@ -424,9 +585,19 @@ Dentro:
 
 ```python
 from odoo.tools import config
-print(config['addons_path']); print(config['data_dir']); print(config['db_host'], config['db_port'])
+import odoo.addons
+print(config['addons_path']); print(list(odoo.addons.__path__))
+print(config['data_dir']); print(config['db_host'], config['db_port'], config['db_user'])
 exit()
 ```
+
+En Odoo 19, `config['addons_path']` sale **vacío** (`[]`) porque `odoo.conf` no define esa opción. Las carpetas que Odoo usa de verdad están en `odoo.addons.__path__`.
+
+(Para la captura, el código se pasó a `odoo shell` por la entrada estándar con `printf '...' |` y se añadió `--log-level=error` para quitar los avisos.)
+
+📸 Valores efectivos:
+
+![Configuración efectiva desde odoo shell](capturas/5-3_config_efectiva.png)
 
 Conexiones activas de Odoo en PostgreSQL:
 
@@ -434,19 +605,31 @@ Conexiones activas de Odoo en PostgreSQL:
 sudo -u postgres psql -c "SELECT usename, datname, client_addr, client_port FROM pg_stat_activity WHERE usename='odoo';"
 ```
 
+📸 Todas las conexiones del usuario `odoo` tienen `client_addr` vacío y `client_port = -1`: son conexiones por **socket Unix**, no por TCP:
+
+![Conexiones de Odoo en pg_stat_activity](capturas/5-4_conexiones_odoo.png)
+
 PostgreSQL:
 
 ```bash
 sudo -u postgres psql -c "SHOW config_file;" -c "SHOW data_directory;" -c "SHOW port;" -c "SHOW listen_addresses;" -c "SHOW unix_socket_directories;" -c "SHOW hba_file;"
 ```
 
+```bash
+sudo grep -vE '^\s*(#|$)' /etc/postgresql/16/main/pg_hba.conf
+```
+
+📸 Rutas y parámetros de PostgreSQL, y reglas activas de `pg_hba.conf` (`local all all peer`):
+
+![SHOW de PostgreSQL y pg_hba.conf](capturas/5-5_postgresql_show_hba.png)
+
 ### Para el informe – Respuestas
 
 **a) db_host, db_port, db_user, db_password. ¿Socket o TCP?**
-En `/etc/odoo/odoo.conf`: `db_host = False`, `db_port = False`, `db_user = odoo`, `db_password = False` (no hay contraseña; si la tuvieras, no la copies). Al no indicar host, la librería de conexión (psycopg2) no usa TCP sino el **socket local de Unix** en `/var/run/postgresql` (lo confirma `SHOW unix_socket_directories`). Lo he comprobado con `pg_stat_activity`: las conexiones del usuario `odoo` tienen `client_addr` **vacío**, que es lo que aparece en las conexiones por socket (por TCP aparecería `127.0.0.1`). Como no hay contraseña, PostgreSQL autentica por *peer*: comprueba que el usuario del sistema (`odoo`) coincide con el rol de la base de datos (regla `local all all peer` en `pg_hba.conf`).
+En `/etc/odoo/odoo.conf`: `db_host = False`, `db_port = False`, `db_user = odoo`, `db_password = False` (no hay contraseña; si la tuvieras, no la copies). Odoo avisa en el log de que `'False'` no es un valor válido para esas opciones y las ignora. Por eso los valores efectivos son `db_host` vacío y `db_port = None` (captura 5-3). Al no indicar host, la librería de conexión (psycopg2) no usa TCP sino el **socket local de Unix** en `/var/run/postgresql` (lo confirma `SHOW unix_socket_directories`). Lo he comprobado con `pg_stat_activity`: las 11 conexiones del usuario `odoo` tienen `client_addr` **vacío** y `client_port = -1`, que es lo que aparece en las conexiones por socket (por TCP aparecería `127.0.0.1` y un puerto). Como no hay contraseña, PostgreSQL autentica por *peer*: comprueba que el usuario del sistema (`odoo`) coincide con el rol de la base de datos (regla `local all all peer` en `pg_hba.conf`).
 
 **b) addons_path y data_dir**
-- `addons_path`: carpetas donde Odoo busca módulos (aplicaciones). En la instalación por paquete: `/usr/lib/python3/dist-packages/odoo/addons` (comprueba la ruta exacta en tu salida).
+- `addons_path`: carpetas donde Odoo busca módulos (aplicaciones). En esta instalación son tres: `/usr/lib/python3/dist-packages/odoo/addons` (módulos base del paquete), `/var/lib/odoo/.local/share/Odoo/addons/19.0` (módulos que se añadan desde la interfaz) y `/usr/lib/python3/dist-packages/addons` (el resto de aplicaciones del paquete).
 - `data_dir`: carpeta donde Odoo guarda datos que no van a la base de datos (filestore, sesiones). No aparece en `odoo.conf`, así que se usa el valor por defecto `~/.local/share/Odoo` del usuario `odoo`, cuyo home es `/var/lib/odoo` → **`/var/lib/odoo/.local/share/Odoo`**.
 
 **c) Filestore de ua2_ubuntu**
@@ -463,6 +646,10 @@ sudo du -sh /var/lib/odoo/.local/share/Odoo/filestore/ua2_ubuntu
 sudo -u postgres psql -d ua2_ubuntu -c "SELECT id, name, mimetype, store_fname FROM ir_attachment WHERE store_fname IS NOT NULL LIMIT 5;"
 ```
 
+📸 Filestore: subcarpetas de 2 caracteres, 19 MB en total, y fichas de `ir_attachment` cuyo `store_fname` apunta a esos archivos:
+
+![Filestore de ua2_ubuntu](capturas/5-6_filestore.png)
+
 Está en `/var/lib/odoo/.local/share/Odoo/filestore/ua2_ubuntu`. Guarda los **archivos binarios** (adjuntos, imágenes, logos, CSS/JS compilados de la web…). Tiene subcarpetas de 2 caracteres (`3a/`, `f1/`…) y dentro archivos cuyo nombre es su **huella SHA-1**. La base de datos no guarda el archivo, solo una ficha en la tabla `ir_attachment` cuyo campo `store_fname` (p. ej. `3a/3a9f…`) apunta al archivo. Por eso una copia de seguridad necesita **las dos partes**: base de datos + filestore. Si falta una, se pierden imágenes y adjuntos.
 
 **d) Logs de Odoo**
@@ -472,9 +659,13 @@ En `/var/log/odoo/odoo-server.log` (lo fija `--logfile` en `ExecStart` de `syste
 sudo tail -n 15 /var/log/odoo/odoo-server.log
 ```
 
-Ejemplo de interpretación (usa una línea tuya):
-`2026-11-24 10:15:03,421 1234 INFO ua2_ubuntu werkzeug: 10.0.2.2 - - [24/Nov/2026 10:15:03] "POST /web/login HTTP/1.1" 303 - 31 0.020 0.110`
-→ **Fecha/hora** `2026-11-24 10:15:03,421` (en UTC) · **PID** 1234 · **Nivel** `INFO` · **BD** `ua2_ubuntu` · **origen** `werkzeug` (servidor web interno) · **Mensaje**: petición `POST /web/login` desde `10.0.2.2` (el NAT de VirtualBox, o sea, Windows) con respuesta `303` (redirección tras un inicio de sesión correcto).
+📸 Últimas líneas del log:
+
+![Log de Odoo](capturas/5-7_log_odoo.png)
+
+Interpretación de una línea real de la captura:
+`2026-11-24 19:54:32,726 15452 INFO ua2_ubuntu werkzeug: 10.0.2.2 - - [24/Nov/2026 19:54:32] "GET /odoo/action-website.action_website_configuration HTTP/1.1" 200 - 24 0.010 0.013`
+→ **Fecha/hora** `2026-11-24 19:54:32,726` (en UTC) · **PID** 15452 (proceso de Odoo) · **Nivel** `INFO` · **BD** `ua2_ubuntu` · **origen** `werkzeug` (servidor web interno) · **Mensaje**: petición `GET` a los ajustes de Sitio web desde `10.0.2.2` (el NAT de VirtualBox, o sea, Windows), respuesta `200` (correcta). Los tres números finales son las consultas SQL (24), el tiempo en la base de datos (0,010 s) y el tiempo restante de procesamiento (0,013 s).
 
 **e) website/__manifest__.py**
 
@@ -482,7 +673,11 @@ Ejemplo de interpretación (usa una línea tuya):
 sudo cat /usr/lib/python3/dist-packages/odoo/addons/website/__manifest__.py | head -40
 ```
 
-Anota los valores reales. Normalmente: `name: 'Website'`, `version` tipo `'1.0'`, `depends` con módulos como `web`, `http_routing`, `portal`, `mail`, `auth_signup`, `social_media`, `utm`, `digest`… Los dos primeros de `data` suelen ser de **seguridad** (`security/website_security.xml` y `security/ir.model.access.csv`): Odoo los carga primero para crear los grupos/reglas y los **permisos de acceso a los modelos** antes de crear vistas, menús y datos que dependen de ellos.
+📸 Manifiesto de `website`:
+
+![__manifest__.py de website](capturas/5-8_manifest_website.png)
+
+Valores reales: `name: 'Website'`, `category: 'Website/Website'`, `version: '1.0'` (Odoo la muestra como `19.0.1.0`), `depends` con 11 módulos: `digest`, `web`, `html_editor`, `http_routing`, `portal`, `social_media`, `auth_signup`, `mail`, `google_recaptcha`, `utm` y `html_builder` (los mismos de la captura 4-2). Necesita además la librería Python `geoip2` (paquete `python3-geoip2`). Los dos primeros de `data` son de **seguridad** (`security/website_security.xml` y `security/ir.model.access.csv`). Odoo los carga primero para crear los grupos, las reglas y los **permisos de acceso a los modelos** antes que las vistas, menús y datos que dependen de ellos. El propio manifiesto lo explica en un comentario: «security.xml first, data.xml need the group to exist».
 
 ---
 
@@ -498,6 +693,10 @@ sudo apt install -y nginx
 sudo systemctl enable --now nginx
 ```
 
+📸 Instalación de Nginx 1.24 y habilitación del servicio:
+
+![Instalación de Nginx](capturas/6-1_instalar_nginx.png)
+
 En `odoo.conf` añade:
 
 ```ini
@@ -508,7 +707,9 @@ proxy_mode = True
 sudo systemctl restart odoo
 ```
 
-Crea el sitio a partir de la plantilla `odoo_ua2` del profesor. Una versión completa está en `config/odoo-ua2.nginx.conf` de este repositorio. En la **primera fase** usa un único `server { listen 80; ... }` con las `location` del bloque 443 (sin `ssl_*` ni `return 301`).
+Crea el sitio a partir de la plantilla `odoo_ua2` del profesor. Una versión completa está en `config/odoo-ua2.nginx.conf` de este repositorio. En la **primera fase** usa un único `server { listen 80; ... }` con las `location` del bloque 443 (sin `ssl_*` ni `return 301`). Esa versión está en `config/odoo-ua2-http.nginx.conf`.
+
+(En la práctica, en lugar de `nano`, el archivo se escribió desde la consola con un *heredoc*: `sudo tee /etc/nginx/sites-available/odoo-ua2 > /dev/null <<'EOF'` … `EOF`. Las tildes de los comentarios se quitaron porque el teclado de la consola está en inglés.)
 
 ```bash
 sudo nano /etc/nginx/sites-available/odoo-ua2
@@ -534,7 +735,23 @@ sudo systemctl reload nginx
 sudo ufw allow 80/tcp
 ```
 
-Regla NAT **Nginx-HTTP**: 18080 → 80. Abre `http://localhost:18080`, inicia sesión y navega: la URL debe seguir con `:18080`. 📸
+📸 `odoo.conf` con `proxy_mode = True`, sitio enlazado en `sites-enabled` (sin `default`), `nginx -t` correcto y puerto 80 abierto en UFW:
+
+![Fase HTTP: proxy_mode, enlace, nginx -t y UFW](capturas/6-2_fase_http_nginx_t.png)
+
+📸 Sitio de la fase HTTP:
+
+![Sitio odoo-ua2 en fase HTTP](capturas/6-3_sitio_http.png)
+
+Regla NAT **Nginx-HTTP**: 18080 → 80 (ya creada en el apartado 1). Abre `http://localhost:18080`, inicia sesión y navega: la URL debe seguir con `:18080`.
+
+📸 Inicio de sesión en `localhost:18080/web/login` (Odoo a través de Nginx):
+
+![Login por HTTP 18080](capturas/6-4_login_http_18080.png)
+
+📸 Tras iniciar sesión y navegar a los ajustes de Sitio web, la URL sigue con `:18080`:
+
+![Navegación por HTTP 18080](capturas/6-5_navegar_http_18080.png)
 
 ### Para el informe – Escucha, destino y cabeceras
 
@@ -556,9 +773,17 @@ sudo chmod 600 /etc/ssl/private/odoo-ua2.key
 openssl x509 -in /etc/ssl/certs/odoo-ua2.crt -noout -subject -issuer -dates -ext subjectAltName
 ```
 
+📸 Clave privada con permisos `600` (solo root), y certificado con sujeto y emisor `CN = localhost`, 30 días de validez y SAN `DNS:localhost, IP Address:127.0.0.1`:
+
+![Certificado autofirmado](capturas/6-6_certificado.png)
+
 ### Fase HTTPS
 
 Sustituye el sitio por la versión completa de `config/odoo-ua2.nginx.conf`.
+
+📸 Sitio final (parte inferior; arriba quedan el `upstream` y el `server` del 80 con `return 301`):
+
+![Sitio odoo-ua2 con HTTPS](capturas/6-7_sitio_https.png)
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
@@ -572,12 +797,36 @@ sudo ufw allow 443/tcp
 sudo ufw status numbered
 ```
 
-Regla NAT **Nginx-HTTPS**: 18443 → 443.
+📸 `nginx -t` correcto, puerto 443 añadido y reglas numeradas de UFW:
+
+![nginx -t y UFW con 443](capturas/6-8_nginx_t_ufw_443.png)
+
+Regla NAT **Nginx-HTTPS**: 18443 → 443 (ya creada en el apartado 1).
 
 Pruebas:
-- `https://localhost:18443` → aviso de seguridad → Avanzado → Continuar. Inicia sesión y navega. 📸
-- `http://localhost:18080/odoo/contacts` → debe acabar en `https://localhost:18443/odoo/contacts` (misma ruta). 📸
-- Candado/aviso → Ver certificado: CN `localhost`, emisor `localhost` (el mismo, por ser autofirmado), validez 30 días, SAN `DNS:localhost, IP:127.0.0.1`. 📸
+- `https://localhost:18443` → aviso de seguridad → Avanzado → Continuar. Inicia sesión y navega.
+- `http://localhost:18080/odoo/contacts` → debe acabar en `https://localhost:18443/odoo/contacts` (misma ruta). En esta base de datos no está instalada la app Contactos, así que se probó con `/odoo/apps`, que conserva la ruta igual.
+- Candado/aviso → Ver certificado: CN `localhost`, emisor `localhost` (el mismo, por ser autofirmado), validez 30 días, SAN `DNS:localhost, IP:127.0.0.1`.
+
+📸 Aviso del navegador: `NET::ERR_CERT_AUTHORITY_INVALID`:
+
+![Aviso de certificado](capturas/6-9_aviso_certificado.png)
+
+📸 Avanzado → «Continuar a localhost (no seguro)»:
+
+![Aviso avanzado](capturas/6-10_aviso_avanzado.png)
+
+📸 Sesión iniciada y navegando por `https://localhost:18443` (el candado aparece como «No seguro» por el certificado autofirmado, pero la conexión va cifrada):
+
+![Odoo por HTTPS 18443](capturas/6-11_https_18443.png)
+
+📸 Al abrir `http://localhost:18080/odoo/apps`, Nginx responde `301` y el navegador termina en `https://localhost:18443/odoo/apps`, con la misma ruta:
+
+![Redirección de 18080 a 18443](capturas/6-12_redireccion_18080_a_18443.png)
+
+📸 Datos del certificado vistos desde Windows (en lugar del visor del navegador, se leyeron con PowerShell conectando a `localhost:18443`). Coinciden con los de Ubuntu: sujeto y emisor `CN=localhost`, 30 días, SAN `localhost` / `127.0.0.1`, TLS 1.3. Windows no confía en él (`UntrustedRoot`) porque no lo firma ninguna CA:
+
+![Certificado visto desde Windows](capturas/6-13_certificado_windows.png)
 
 ### Para el informe – Aviso del certificado autofirmado
 
@@ -597,9 +846,29 @@ sudo tail -n 20 /var/log/nginx/odoo-ua2.access.log
 sudo tail -n 20 /var/log/nginx/odoo-ua2.error.log
 ```
 
-Ejemplo de interpretación:
-`10.0.2.2 - - [24/Nov/2026:11:02:10 +0100] "GET /odoo/contacts HTTP/1.1" 200 5231 "-" "Mozilla/5.0 (Windows NT 10.0; ...)"`
-→ cliente `10.0.2.2` (Windows a través del NAT de VirtualBox), fecha, método `GET`, ruta `/odoo/contacts`, código `200` (correcto), tamaño 5231 bytes, navegador de Windows. Busca también un `301` en el puerto 80 (la redirección a HTTPS).
+📸 Nginx `active (running)` y `enabled`, con el proceso maestro y dos procesos *worker*:
+
+![Estado de Nginx](capturas/6-14_estado_nginx.png)
+
+📸 Log de acceso. Arriba, peticiones HTTPS del sitio `odoo-ua2`. Abajo, los `301` del puerto 80: el bloque del 80 no define `access_log` propio, así que se registran en el log general `/var/log/nginx/access.log`:
+
+```bash
+sudo grep -E '"(GET|POST) /(odoo|web/login)' /var/log/nginx/odoo-ua2.access.log | tail -n 8
+```
+
+```bash
+sudo grep ' 301 ' /var/log/nginx/access.log | tail -n 4
+```
+
+![Logs de acceso de Nginx](capturas/6-15_access_log.png)
+
+📸 Log de errores del sitio: vacío (0 líneas), no hubo ningún error:
+
+![Log de errores de Nginx](capturas/6-16_error_log.png)
+
+Interpretación de una línea real:
+`10.0.2.2 - - [24/Nov/2026:20:14:16 +0000] "POST /web/login HTTP/1.1" 303 197 "https://localhost:18443/web/login" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ..."`
+→ cliente `10.0.2.2` (Windows a través del NAT de VirtualBox), fecha en UTC, método `POST` a `/web/login` (envío del formulario de inicio de sesión), código `303` (Odoo redirige tras un inicio de sesión correcto), 197 bytes, página de origen (*referer*) `https://localhost:18443/web/login` y navegador de Windows. En `access.log` aparece `"GET /odoo/apps HTTP/1.1" 301 178`: es la redirección del puerto 80 a HTTPS.
 
 ### Cerrar el acceso directo a Odoo
 
@@ -627,8 +896,29 @@ sudo ufw delete allow 8069/tcp
 sudo ufw status
 ```
 
-Borra la regla NAT **Odoo-directo** en VirtualBox. Quedan SSH, Nginx-HTTP y Nginx-HTTPS. 📸
-Prueba: `http://localhost:18069` → no conecta 📸; `https://localhost:18443` → funciona 📸.
+📸 `http_interface = 127.0.0.1` en `odoo.conf`, Odoo escuchando solo en `127.0.0.1:8069`, regla 8069 borrada y UFW con 22, 80 y 443:
+
+![Cierre del acceso directo a Odoo](capturas/6-17_cerrar_8069.png)
+
+Borra la regla NAT **Odoo-directo** en VirtualBox. Quedan SSH, Nginx-HTTP y Nginx-HTTPS. Con la VM encendida:
+
+```bash
+"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" controlvm "Ubuntu Server 24.04" natpf1 delete Odoo-directo
+```
+
+📸 Reglas NAT finales y comprobación de puertos desde Windows (18069 no conecta, 18443 abierto):
+
+![Reglas NAT finales](capturas/6-18_nat_final.png)
+
+Prueba: `http://localhost:18069` → no conecta; `https://localhost:18443` → funciona.
+
+📸 `localhost:18069` → `ERR_CONNECTION_REFUSED`:
+
+![18069 no conecta](capturas/6-19_18069_no_conecta.png)
+
+📸 `https://localhost:18443` → Odoo funcionando:
+
+![18443 funciona](capturas/6-20_18443_funciona.png)
 
 ### Para el informe – Recorrido de la petición
 
@@ -730,16 +1020,17 @@ sudo systemctl start odoo && systemctl is-active odoo
 
 ## Checklist de capturas
 
-- [ ] 1 – Adaptador NAT y reglas de reenvío
-- [ ] 1 – `ip -br a`, `ip route`, pings
-- [ ] 1 – OpenSSH activo y conexión desde Windows por 2222
-- [ ] 1 – `~/ua2_p2`, `terminal.txt` y `terminal_copia.txt`
-- [ ] 2 – Versiones, `pg_lsclusters`, puerto 5432, servicios activos y habilitados, logs
-- [ ] 3 – Copia `.p2.bak`, `odoo.conf` editado (tapa la contraseña), `ss`, UFW
-- [ ] 3 – Creación de `ua2_ubuntu` e inicio de sesión
-- [ ] 4 – Instalación de `website` por terminal, estado y dependencias, app y ajustes
-- [ ] 5 – `dpkg -L`, `systemctl cat`, config efectiva, filestore, log, manifest, `SHOW`
-- [ ] 6 – `nginx -t`, acceso por 18080, certificado, HTTPS 18443, redirección, logs
-- [ ] 6 – 18069 sin acceso, 18443 funcionando, reglas finales NAT y UFW
+- [x] 0 – Script de requisitos, configuración de la VM y Ubuntu instalado (`capturas/0-*.png`)
+- [x] 1 – Adaptador NAT y reglas de reenvío
+- [x] 1 – `ip -br a`, `ip route`, pings
+- [x] 1 – OpenSSH activo y conexión desde Windows por 2222
+- [x] 1 – `~/ua2_p2`, `terminal.txt` y `terminal_copia.txt`
+- [x] 2 – Versiones, `pg_lsclusters`, puerto 5432, servicios activos y habilitados, logs
+- [x] 3 – Copia `.p2.bak`, `odoo.conf` editado (tapa la contraseña), `ss`, UFW
+- [x] 3 – Creación de `ua2_ubuntu` e inicio de sesión
+- [x] 4 – Instalación de `website` por terminal, estado y dependencias, app y ajustes
+- [x] 5 – `dpkg -L`, `systemctl cat`, config efectiva, filestore, log, manifest, `SHOW`
+- [x] 6 – `nginx -t`, acceso por 18080, certificado, HTTPS 18443, redirección, logs
+- [x] 6 – 18069 sin acceso, 18443 funcionando, reglas finales NAT y UFW
 - [ ] 7 – Contacto, comprobaciones tras reinicio, 502, logs y recuperación
 - [ ] 8 – Tabla comparativa con datos reales
