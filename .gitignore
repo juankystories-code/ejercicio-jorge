@@ -1,0 +1,6 @@
+# Archivos grandes descargados (ISO, instaladores, discos de VM): no se suben a GitHub
+descargas/
+*.iso
+*.vdi
+*.exe
+*.msi

@@ -6,7 +6,8 @@
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'   # acelera Invoke-WebRequest
 
-$dest = Join-Path $env:USERPROFILE 'Downloads\SGE_P2'
+# Todo se guarda en la carpeta 'descargas' dentro del repo (ignorada por git)
+$dest = Join-Path $PSScriptRoot 'descargas'
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 Write-Host "Carpeta de descargas: $dest" -ForegroundColor Cyan
 
@@ -54,6 +55,8 @@ if (Get-Command winget -ErrorAction SilentlyContinue) {
     } else {
         Write-Host 'Instalando Visual C++ Redistributable y VirtualBox (pedira permisos de administrador)...'
         winget install --id Microsoft.VCRedist.2015+.x64 -e --accept-source-agreements --accept-package-agreements
+        # El instalador de VirtualBox se guarda en el repo y luego se instala
+        winget download --id Oracle.VirtualBox -e -d $dest --accept-source-agreements --accept-package-agreements
         winget install --id Oracle.VirtualBox -e --accept-source-agreements --accept-package-agreements
     }
 } else {

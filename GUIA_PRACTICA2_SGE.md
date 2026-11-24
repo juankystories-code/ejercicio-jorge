@@ -29,7 +29,7 @@ Desde PowerShell, en la carpeta del repositorio:
 powershell -ExecutionPolicy Bypass -File .\descargar_requisitos.ps1
 ```
 
-El script descarga la última ISO de Ubuntu Server 24.04 en `Descargas\SGE_P2`, comprueba su huella SHA256 (que no esté corrupta), instala VirtualBox con `winget` y revisa el cliente SSH y la virtualización.
+El script descarga la última ISO de Ubuntu Server 24.04 en la carpeta `descargas` del propio repo (ignorada por git: no se sube a GitHub), comprueba su huella SHA256 (que no esté corrupta), instala VirtualBox con `winget` y revisa el cliente SSH y la virtualización.
 
 ### Crear la máquina virtual
 
