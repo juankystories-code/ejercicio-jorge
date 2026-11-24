@@ -941,7 +941,18 @@ TLS protege el tramo **navegador ↔ Nginx** (incluido el paso por el NAT). De N
 
 ## 7. Persistencia y diagnóstico de una parada
 
-1. **Contactos → Nuevo**: `Prueba P2 - Ubuntu`, correo `prueba.p2@example.com` → Guardar. 📸 (Si no aparece Contactos, instálala desde Aplicaciones.)
+1. **Contactos → Nuevo**: `Prueba P2 - Ubuntu`, correo `prueba.p2@example.com` → Guardar. (Si no aparece Contactos, instálala desde Aplicaciones.)
+
+En esta base de datos Contactos no estaba instalada: se activó desde **Aplicaciones → Contactos → Activar**. Al terminar, Odoo abre el configurador del sitio web; se puede cerrar sin hacer nada.
+
+📸 Contacto nuevo relleno (`/odoo/contacts/new`):
+
+![Contacto nuevo](capturas/7-1_contacto_nuevo.png)
+
+📸 Contacto guardado (`/odoo/contacts/6`, «Contacto creado» en el historial):
+
+![Contacto guardado](capturas/7-2_contacto_guardado.png)
+
 2. Reiniciar:
 
 ```bash
@@ -951,7 +962,7 @@ sudo reboot
 3. Tras el reinicio, desde Windows:
 
 ```bash
-ssh -p 2222 TU_USUARIO@127.0.0.1
+ssh -p 2222 vboxuser@127.0.0.1
 ```
 
 ```bash
@@ -966,7 +977,23 @@ sudo ufw status
 sudo -u postgres psql -d ua2_ubuntu -c "SELECT name, state FROM ir_module_module WHERE name='website';"
 ```
 
-Abre `https://localhost:18443`, busca el contacto y comprueba nombre y correo. 📸
+📸 Tras el reinicio (los comandos se lanzaron en la consola de la VM). El arranque actual figura como `still running` en `last reboot`, los cuatro servicios están `active`, UFW sigue con 22, 80 y 443, `website` y `contacts` siguen `installed` y el contacto sigue en `res_partner`:
+
+```bash
+uptime -s; last reboot | head -2
+```
+
+```bash
+sudo -u postgres psql -d ua2_ubuntu -c "SELECT id, name, email FROM res_partner WHERE name LIKE 'Prueba P2%';"
+```
+
+![Comprobaciones tras el reinicio](capturas/7-3_tras_reinicio.png)
+
+Abre `https://localhost:18443`, busca el contacto y comprueba nombre y correo.
+
+📸 Búsqueda «Prueba P2» en Contactos tras el reinicio: aparece con su correo:
+
+![Contacto tras el reinicio](capturas/7-4_contacto_tras_reinicio.png)
 
 4. Parar solo Odoo:
 
@@ -974,7 +1001,11 @@ Abre `https://localhost:18443`, busca el contacto y comprueba nombre y correo. �
 sudo systemctl stop odoo
 ```
 
-En el navegador → **502 Bad Gateway** (página de Nginx). 📸
+En el navegador → **502 Bad Gateway** (página de Nginx).
+
+📸 `https://localhost:18443/odoo/contacts` con Odoo parado: página `502 Bad Gateway` de `nginx/1.24.0 (Ubuntu)`:
+
+![502 Bad Gateway](capturas/7-5_502_bad_gateway.png)
 
 ```bash
 systemctl is-active nginx odoo postgresql
@@ -993,13 +1024,25 @@ sudo tail -n 5 /var/log/nginx/odoo-ua2.error.log
 Esperado en Nginx: `connect() failed (111: Connection refused) while connecting to upstream, ... upstream: "http://127.0.0.1:8069/..."`.
 En Odoo: las últimas líneas de la parada (`Initiating shutdown` / `Hit CTRL-C again or send a second signal to force the shutdown`).
 
+📸 `active` / `inactive` / `active`. El log de Odoo termina con la parada (`Initiating shutdown`, `Hit CTRL-C again...`, `Closed 8 connections`). Nginx registra `connect() failed (111: Connection refused) while connecting to upstream`, con `upstream: "http://127.0.0.1:8069/odoo/contacts"`:
+
+![Diagnóstico: estados y logs](capturas/7-6_diagnostico_logs.png)
+
 **Diagnóstico para el informe**: Nginx sigue funcionando y acepta la conexión HTTPS, pero al reenviarla a `127.0.0.1:8069` no hay nadie escuchando (conexión rechazada), así que devuelve 502. PostgreSQL está bien. El fallo está en Odoo.
+
+(En el log de Odoo, las peticiones llegan como `HTTP/1.0`: es la versión que usa Nginx por defecto al reenviar a `proxy_pass`. El navegador habla HTTP/1.1 con Nginx, como se ve en el log de Nginx.)
 
 ```bash
 sudo systemctl start odoo && systemctl is-active odoo
 ```
 
-📸 Odoo vuelve a funcionar.
+📸 Odoo arrancado: los cuatro `active` y escuchando otra vez en `127.0.0.1:8069`:
+
+![Odoo arrancado de nuevo](capturas/7-7_odoo_arrancado.png)
+
+📸 Odoo vuelve a funcionar: el contacto se abre de nuevo por `https://localhost:18443`:
+
+![Odoo recuperado](capturas/7-8_odoo_recuperado.png)
 
 ---
 
@@ -1032,5 +1075,5 @@ sudo systemctl start odoo && systemctl is-active odoo
 - [x] 5 – `dpkg -L`, `systemctl cat`, config efectiva, filestore, log, manifest, `SHOW`
 - [x] 6 – `nginx -t`, acceso por 18080, certificado, HTTPS 18443, redirección, logs
 - [x] 6 – 18069 sin acceso, 18443 funcionando, reglas finales NAT y UFW
-- [ ] 7 – Contacto, comprobaciones tras reinicio, 502, logs y recuperación
+- [x] 7 – Contacto, comprobaciones tras reinicio, 502, logs y recuperación
 - [ ] 8 – Tabla comparativa con datos reales
