@@ -1049,14 +1049,16 @@ sudo systemctl start odoo && systemctl is-active odoo
 ## 8. Comparativa nativa vs. Docker
 
 > Ajusta la columna Docker con los **nombres reales de tu Actividad 1** (nombre del contenedor, volúmenes y ruta del `docker-compose.yml`). Consúltalos con `docker compose ps` y `docker volume ls`.
+>
+> **Pendiente:** en este equipo no hay Docker ni el `docker-compose.yml` de la Actividad 1, así que la columna Docker conserva los nombres de ejemplo (`odoo-db-data`, `odoo-web-data`…). La columna nativa ya tiene los valores reales de esta instalación.
 
 | Aspecto | Instalación nativa (esta práctica) | Docker (Actividad 1) |
 |---|---|---|
-| **Inicio, parada, reinicio y estado** | `sudo systemctl start/stop/restart odoo` · `systemctl status odoo` · arranque automático con `systemctl enable odoo` · logs en `/var/log/odoo/odoo-server.log` | `docker compose up -d` / `docker compose stop` / `docker compose restart odoo` · `docker compose ps` · logs con `docker compose logs -f odoo` · arranque automático con `restart: unless-stopped` |
+| **Inicio, parada, reinicio y estado** | `sudo systemctl start/stop/restart odoo` · `systemctl status odoo` · arranque automático con `systemctl enable odoo` (unidad `/usr/lib/systemd/system/odoo.service`, usuario `odoo`) · logs en `/var/log/odoo/odoo-server.log`. Comprobado: tras `sudo reboot` arrancan solos ssh, nginx, odoo y postgresql (captura 7-3), y `systemctl stop odoo` deja Nginx dando 502 (7-5). | `docker compose up -d` / `docker compose stop` / `docker compose restart odoo` · `docker compose ps` · logs con `docker compose logs -f odoo` · arranque automático con `restart: unless-stopped` |
 | *Diferencia* | Odoo es un servicio más del sistema, gestionado por systemd. | Odoo y PostgreSQL son contenedores gestionados por Docker; se manejan juntos desde la carpeta del `docker-compose.yml`. |
-| **Configuración y aplicación de cambios** | `/etc/odoo/odoo.conf` (copia en `odoo.conf.p2.bak`). Se edita con `nano` y se aplica con `sudo systemctl restart odoo`. La conexión a BD va en el propio `odoo.conf`. | `docker-compose.yml` (variables `HOST`, `USER`, `PASSWORD`, puertos) + `./config/odoo.conf` montado en `/etc/odoo/odoo.conf` dentro del contenedor. Se aplica con `docker compose restart odoo` (o `docker compose up -d` si cambia el compose). |
+| **Configuración y aplicación de cambios** | `/etc/odoo/odoo.conf` (propietario `odoo:odoo`, permisos `640`; copia en `odoo.conf.p2.bak`). Se edita (`nano` o `tee`) y se aplica con `sudo systemctl restart odoo`. La conexión a BD va en el propio `odoo.conf` (`db_user = odoo`, socket local). Valores finales: `http_port = 8069`, `log_level = info`, `proxy_mode = True`, `http_interface = 127.0.0.1` (capturas 5-2 y 6-17). | `docker-compose.yml` (variables `HOST`, `USER`, `PASSWORD`, puertos) + `./config/odoo.conf` montado en `/etc/odoo/odoo.conf` dentro del contenedor. Se aplica con `docker compose restart odoo` (o `docker compose up -d` si cambia el compose). |
 | *Diferencia* | Un solo archivo en el sistema. | La configuración se reparte entre el compose y el `odoo.conf` montado; cambiar el compose recrea el contenedor. |
-| **Base de datos y filestore** | PostgreSQL 16 nativo: datos en `/var/lib/postgresql/16/main` (`SHOW data_directory`). Filestore en `/var/lib/odoo/.local/share/Odoo/filestore/ua2_ubuntu`. | Datos de PostgreSQL en un volumen (p. ej. `odoo-db-data` → `/var/lib/postgresql/data`). Filestore en otro volumen (p. ej. `odoo-web-data` → `/var/lib/odoo/filestore/<bd>`). Se ven con `docker volume inspect`. |
+| **Base de datos y filestore** | PostgreSQL 16.15 nativo: datos en `/var/lib/postgresql/16/main` (`SHOW data_directory`), escucha solo en `127.0.0.1:5432` y Odoo entra por el socket `/var/run/postgresql` (5-4, 5-5). Filestore en `/var/lib/odoo/.local/share/Odoo/filestore/ua2_ubuntu`, 19 MB tras crear la BD e instalar `website` (5-6). | Datos de PostgreSQL en un volumen (p. ej. `odoo-db-data` → `/var/lib/postgresql/data`). Filestore en otro volumen (p. ej. `odoo-web-data` → `/var/lib/odoo/filestore/<bd>`). Se ven con `docker volume inspect`. |
 | *Diferencia* | Los datos están en carpetas normales del disco de Ubuntu. | Los datos viven en volúmenes de Docker: sobreviven aunque borres el contenedor, pero se pierden con `docker compose down -v`. |
 
 ---
@@ -1076,4 +1078,4 @@ sudo systemctl start odoo && systemctl is-active odoo
 - [x] 6 – `nginx -t`, acceso por 18080, certificado, HTTPS 18443, redirección, logs
 - [x] 6 – 18069 sin acceso, 18443 funcionando, reglas finales NAT y UFW
 - [x] 7 – Contacto, comprobaciones tras reinicio, 502, logs y recuperación
-- [ ] 8 – Tabla comparativa con datos reales
+- [ ] 8 – Tabla comparativa con datos reales (columna nativa hecha; falta la columna Docker con los nombres de la Actividad 1)
